@@ -315,7 +315,8 @@ static void arrange_children(enum sway_container_layout layout, list_t *children
 
 			int net_height = height - title_bar_height;
 			if (activated && width > 0 && net_height > 0) {
-				arrange_container(child, width, net_height, title_bar_height == 0, 0);
+				arrange_container(child, width, height - title_bar_height,
+					title_bar_height == 0, gaps);
 			} else {
 				disable_container(child);
 			}
@@ -345,7 +346,8 @@ static void arrange_children(enum sway_container_layout layout, list_t *children
 
 			int net_height = height - title_bar_height;
 			if (activated && width > 0 && net_height > 0) {
-				arrange_container(child, width, net_height, title_bar_height == 0, 0);
+				arrange_container(child, width, height - title_height,
+					title_bar_height == 0, gaps);
 			} else {
 				disable_container(child);
 			}
@@ -470,19 +472,6 @@ static void arrange_container(struct sway_container *con,
 
 static int container_get_gaps(struct sway_container *con) {
 	struct sway_workspace *ws = con->current.workspace;
-	struct sway_container *temp = con;
-	while (temp) {
-		enum sway_container_layout layout;
-		if (temp->current.parent) {
-			layout = temp->current.parent->current.layout;
-		} else {
-			layout = ws->current.layout;
-		}
-		if (layout == L_TABBED || layout == L_STACKED) {
-			return 0;
-		}
-		temp = temp->pending.parent;
-	}
 	return ws->gaps_inner;
 }
 
