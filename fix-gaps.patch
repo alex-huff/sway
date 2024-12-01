@@ -1,0 +1,78 @@
+diff --git a/sway/desktop/transaction.c b/sway/desktop/transaction.c
+index 8f12832a..714798f6 100644
+--- a/sway/desktop/transaction.c
++++ b/sway/desktop/transaction.c
+@@ -314,7 +314,7 @@ static void arrange_children(enum sway_container_layout layout, list_t *children
+ 
+ 			if (activated) {
+ 				arrange_container(child, width, height - title_bar_height,
+-					title_bar_height == 0, 0);
++					title_bar_height == 0, gaps);
+ 			} else {
+ 				disable_container(child);
+ 			}
+@@ -343,7 +343,7 @@ static void arrange_children(enum sway_container_layout layout, list_t *children
+ 
+ 			if (activated) {
+ 				arrange_container(child, width, height - title_height,
+-					title_bar_height == 0, 0);
++					title_bar_height == 0, gaps);
+ 			} else {
+ 				disable_container(child);
+ 			}
+@@ -459,19 +459,6 @@ static void arrange_container(struct sway_container *con,
+ 
+ static int container_get_gaps(struct sway_container *con) {
+ 	struct sway_workspace *ws = con->current.workspace;
+-	struct sway_container *temp = con;
+-	while (temp) {
+-		enum sway_container_layout layout;
+-		if (temp->current.parent) {
+-			layout = temp->current.parent->current.layout;
+-		} else {
+-			layout = ws->current.layout;
+-		}
+-		if (layout == L_TABBED || layout == L_STACKED) {
+-			return 0;
+-		}
+-		temp = temp->pending.parent;
+-	}
+ 	return ws->gaps_inner;
+ }
+ 
+diff --git a/sway/tree/arrange.c b/sway/tree/arrange.c
+index 2b95a6dc..54663cb2 100644
+--- a/sway/tree/arrange.c
++++ b/sway/tree/arrange.c
+@@ -58,15 +58,6 @@ static void apply_horiz_layout(list_t *children, struct wlr_box *parent) {
+ 	if (ws) {
+ 		inner_gap = ws->gaps_inner;
+ 	}
+-	// Descendants of tabbed/stacked containers don't have gaps
+-	struct sway_container *temp = child;
+-	while (temp) {
+-		enum sway_container_layout layout = container_parent_layout(temp);
+-		if (layout == L_TABBED || layout == L_STACKED) {
+-			inner_gap = 0;
+-		}
+-		temp = temp->pending.parent;
+-	}
+ 	double total_gap = fmin(inner_gap * (children->length - 1),
+ 		fmax(0, parent->width - MIN_SANE_W * children->length));
+ 	double child_total_width = parent->width - total_gap;
+@@ -137,15 +128,6 @@ static void apply_vert_layout(list_t *children, struct wlr_box *parent) {
+ 	if (ws) {
+ 		inner_gap = ws->gaps_inner;
+ 	}
+-	// Descendants of tabbed/stacked containers don't have gaps
+-	struct sway_container *temp = child;
+-	while (temp) {
+-		enum sway_container_layout layout = container_parent_layout(temp);
+-		if (layout == L_TABBED || layout == L_STACKED) {
+-			inner_gap = 0;
+-		}
+-		temp = temp->pending.parent;
+-	}
+ 	double total_gap = fmin(inner_gap * (children->length - 1),
+ 		fmax(0, parent->height - MIN_SANE_H * children->length));
+ 	double child_total_height = parent->height - total_gap;
