@@ -1,0 +1,8 @@
+#!/bin/sh
+
+mkdir subprojects
+cd subprojects
+git clone "https://gitlab.freedesktop.org/wlroots/wlroots"
+cd wlroots
+git reset --hard be3d2b74cf4e6cfc9644a5c819be8ccd4ac81a1c
+cd ../..
