@@ -412,9 +412,36 @@ void container_arrange_title_bar(struct sway_container *con) {
 	pixman_region32_t background, border;
 
 	int thickness = config->titlebar_border_thickness;
+	int left_border = thickness;
+	int right_border = thickness;
+	int top_border = thickness;
+	int bottom_border = thickness;
+	struct sway_container *parent = con->pending.parent;
+	if (!parent) {
+		goto setup_rects;
+	}
+	enum sway_container_layout parent_layout = parent->pending.layout;
+	if (parent_layout != L_TABBED && parent_layout != L_STACKED) {
+		goto setup_rects;
+	}
+	list_t *siblings = parent->pending.children;
+	struct sway_container *first_container = siblings->items[0];
+	struct sway_container *last_container = siblings->items[siblings->length - 1];
+	bool is_first = first_container->node.id == con->node.id;
+	bool is_last = last_container->node.id == con->node.id;
+	int first_border = is_first ? thickness : thickness / 2;
+	int last_border = is_last ? thickness : thickness - thickness / 2;
+	if (parent_layout == L_TABBED) {
+		left_border = first_border;
+		right_border = last_border;
+	} else if (parent_layout == L_STACKED) {
+		top_border = first_border;
+		bottom_border = last_border;
+	}
+setup_rects:
 	pixman_region32_init_rect(&background,
-		thickness, thickness,
-		width - thickness * 2, height - thickness * 2);
+		left_border, top_border,
+		width - (left_border + right_border), height - (top_border + bottom_border));
 	pixman_region32_init_rect(&border, 0, 0, width, height);
 	pixman_region32_subtract(&border, &border, &background);
 
