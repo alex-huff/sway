@@ -413,25 +413,24 @@ void container_arrange_title_bar(struct sway_container *con) {
 	int right_border = thickness;
 	int top_border = thickness;
 	int bottom_border = thickness;
-	struct sway_container *parent = con->pending.parent;
-	if (!parent) {
+	enum sway_container_layout layout = container_parent_layout(con);
+	if (layout != L_TABBED && layout != L_STACKED) {
 		goto setup_rects;
 	}
-	enum sway_container_layout parent_layout = parent->pending.layout;
-	if (parent_layout != L_TABBED && parent_layout != L_STACKED) {
+	list_t *siblings = container_get_siblings(con);
+	if (!siblings) {
 		goto setup_rects;
 	}
-	list_t *siblings = parent->pending.children;
 	struct sway_container *first_container = siblings->items[0];
 	struct sway_container *last_container = siblings->items[siblings->length - 1];
 	bool is_first = first_container->node.id == con->node.id;
 	bool is_last = last_container->node.id == con->node.id;
 	int first_border = is_first ? thickness : thickness / 2;
 	int last_border = is_last ? thickness : thickness - thickness / 2;
-	if (parent_layout == L_TABBED) {
+	if (layout == L_TABBED) {
 		left_border = first_border;
 		right_border = last_border;
-	} else if (parent_layout == L_STACKED) {
+	} else if (layout == L_STACKED) {
 		top_border = first_border;
 		bottom_border = last_border;
 	}
