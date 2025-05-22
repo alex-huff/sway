@@ -4,6 +4,6 @@ mkdir -p subprojects
 pushd subprojects
 git clone "https://gitlab.freedesktop.org/wlroots/wlroots"
 pushd wlroots
-git reset --hard e57dd9c5ef0b9cffeb56f0d87e0e520f1e300de4
+git reset --hard 170f7e070603f0ecdadc4527c65bc08b62073e58
 popd
 popd
