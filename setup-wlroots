@@ -1,0 +1,9 @@
+#!/bin/bash
+
+mkdir -p subprojects
+pushd subprojects
+git clone "https://gitlab.freedesktop.org/wlroots/wlroots"
+pushd wlroots
+git reset --hard e22084f63967aa72cb56873aeb48b01fb8dc2c9b
+popd
+popd
