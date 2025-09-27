@@ -76,6 +76,7 @@ struct sway_container {
 
 		struct wlr_scene_tree *border;
 		struct wlr_scene_tree *background;
+		struct wlr_scene_tree *filler;
 
 		struct sway_text_node *title_text;
 		struct sway_text_node *marks_text;

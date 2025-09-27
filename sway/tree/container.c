@@ -100,6 +100,7 @@ struct sway_container *container_create(struct sway_view *view) {
 	//   - title bar
 	//     - border
 	//     - background
+	//     - filler
 	//     - title text
 	//     - marks text
 	//   - border
@@ -114,6 +115,7 @@ struct sway_container *container_create(struct sway_view *view) {
 	c->title_bar.tree = alloc_scene_tree(c->scene_tree, &failed);
 	c->title_bar.border = alloc_scene_tree(c->title_bar.tree, &failed);
 	c->title_bar.background = alloc_scene_tree(c->title_bar.tree, &failed);
+	c->title_bar.filler = alloc_scene_tree(c->title_bar.tree, &failed);
 
 	// for opacity purposes we need to carfully create the scene such that
 	// none of our rect nodes as well as text buffers don't overlap. To do
@@ -125,6 +127,8 @@ struct sway_container *container_create(struct sway_view *view) {
 	for (int i = 0; i < 5; i++) {
 		alloc_rect_node(c->title_bar.background, &failed);
 	}
+
+	alloc_rect_node(c->title_bar.filler, &failed);
 
 	c->border.tree = alloc_scene_tree(c->scene_tree, &failed);
 	c->content_tree = alloc_scene_tree(c->border.tree, &failed);
@@ -294,6 +298,11 @@ void container_update(struct sway_container *con) {
 		scene_rect_set_color(rect, colors->background, alpha);
 	}
 
+	wl_list_for_each(node, &con->title_bar.filler->children, link) {
+		struct wlr_scene_rect *rect = wlr_scene_rect_from_node(node);
+		scene_rect_set_color(rect, colors->border, alpha);
+	}
+
 	if (con->view) {
 		scene_rect_set_color(con->border.top, colors->child_border, alpha);
 		scene_rect_set_color(con->border.bottom, bottom, alpha);
@@ -341,6 +350,49 @@ static void update_rect_list(struct wlr_scene_tree *tree, pixman_region32_t *reg
 			wlr_scene_rect_set_size(rect, box->x2 - box->x1, box->y2 - box->y1);
 		}
 	}
+}
+
+static bool internal_title_bar_top_border_is_shared(struct sway_container *con, int depth) {
+	list_t *siblings;
+	if (!con || container_is_floating(con) || !(siblings = container_get_siblings(con))) {
+		return false;
+	}
+	struct sway_container *first_container = siblings->items[0];
+	bool is_first = first_container->node.id == con->node.id;
+	enum sway_container_layout parent_layout = container_parent_layout(con);
+	if (parent_layout == L_TABBED || parent_layout == L_STACKED) {
+		if (depth || (parent_layout == L_STACKED && !is_first)) {
+			return true;
+		}
+	} else if (parent_layout == L_VERT && !is_first) {
+		return false;
+	}
+	return internal_title_bar_top_border_is_shared(con->current.parent, depth + 1);
+}
+
+static bool title_bar_top_border_is_shared(struct sway_container *con) {
+	return internal_title_bar_top_border_is_shared(con, 0);
+}
+
+static bool title_bar_bottom_border_is_shared(struct sway_container *con) {
+	enum sway_container_layout parent_layout = container_parent_layout(con);
+	if (container_is_floating(con) || (parent_layout != L_STACKED && parent_layout != L_TABBED)) {
+		return con->current.children;
+	}
+	list_t *siblings = container_get_siblings(con);
+	struct sway_container *last_container = siblings->items[siblings->length - 1];
+	bool is_last = last_container->node.id == con->node.id;
+	if (parent_layout == L_STACKED && !is_last) {
+		return true;
+	}
+	struct sway_container *parent = con->current.parent;
+	struct sway_container *active;
+	if (parent) {
+		active = parent->current.focused_inactive_child;
+	} else {
+		active = con->current.workspace->current.focused_inactive_child;
+	}
+	return active->current.children;
 }
 
 void container_arrange_title_bar(struct sway_container *con) {
@@ -409,17 +461,13 @@ void container_arrange_title_bar(struct sway_container *con) {
 		return;
 	}
 
-	pixman_region32_t background, border;
+	pixman_region32_t background, border, filler;
 
 	int thickness = config->titlebar_border_thickness;
 	int left_border = thickness;
 	int right_border = thickness;
 	int top_border = thickness;
 	int bottom_border = thickness;
-	enum sway_container_layout layout = container_parent_layout(con);
-	if (layout != L_TABBED && layout != L_STACKED) {
-		goto setup_rects;
-	}
 	list_t *siblings = container_get_siblings(con);
 	if (!siblings) {
 		goto setup_rects;
@@ -428,20 +476,23 @@ void container_arrange_title_bar(struct sway_container *con) {
 	struct sway_container *last_container = siblings->items[siblings->length - 1];
 	bool is_first = first_container->node.id == con->node.id;
 	bool is_last = last_container->node.id == con->node.id;
-	int first_border = is_first ? thickness : thickness / 2;
-	int last_border = is_last ? thickness : thickness - thickness / 2;
-	if (layout == L_TABBED) {
-		left_border = first_border;
-		right_border = last_border;
-	} else if (layout == L_STACKED) {
-		top_border = first_border;
-		bottom_border = last_border;
-	}
+	enum sway_container_layout parent_layout = container_parent_layout(con);
+	bool sharing_top_border = title_bar_top_border_is_shared(con);
+	bool sharing_bottom_border = title_bar_bottom_border_is_shared(con);
+	bool sharing_left_border = parent_layout == L_TABBED && !is_first;
+	bool sharing_right_border = parent_layout == L_TABBED && !is_last;
+	int small_half_border = thickness / 2;
+	int large_half_border = thickness - thickness / 2;
+	left_border = sharing_left_border ? small_half_border : left_border;
+	right_border = sharing_right_border ? large_half_border : right_border;
+	top_border = sharing_top_border ? small_half_border : top_border;
+	bottom_border = sharing_bottom_border ? large_half_border : bottom_border;
 setup_rects:
 	pixman_region32_init_rect(&background,
 		left_border, top_border,
 		width - (left_border + right_border), height - (top_border + bottom_border));
 	pixman_region32_init_rect(&border, 0, 0, width, height);
+	pixman_region32_init_rect(&filler, 0, height, width, sharing_bottom_border ? small_half_border : 0);
 	pixman_region32_subtract(&border, &border, &background);
 
 	pixman_region32_subtract(&background, &background, &text_area);
@@ -452,6 +503,9 @@ setup_rects:
 
 	update_rect_list(con->title_bar.border, &border);
 	pixman_region32_fini(&border);
+
+	update_rect_list(con->title_bar.filler, &filler);
+	pixman_region32_fini(&filler);
 
 	container_update(con);
 }
